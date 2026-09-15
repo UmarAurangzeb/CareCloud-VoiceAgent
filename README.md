@@ -153,6 +153,59 @@ The full system prompt is [`vapi/system-prompt.txt`](vapi/system-prompt.txt); de
 | Model hallucinates a tool outcome instead of calling the tool | Observed once during manual testing with `gpt-4o-mini` (it claimed a duplicate record existed that was never in the database — confirmed via Convex logs showing zero webhook hits during that call). Fixed by moving to `gpt-4o`, adding native Vapi filler messages per tool (so the model doesn't need to narrate "checking" itself), and a first-position system prompt rule forbidding any stated outcome without a real tool result |
 | Malformed/missing fields hitting the REST API directly (not via voice) | 422 with a `fields` array naming exactly which fields failed and why |
 
+## Challenges faced, and how we solved them
+
+Voice is the part of this system that doesn't fail loudly — a broken API returns a stack trace, a
+broken phone call just sounds a little off, which makes voice bugs the easiest ones to ship by accident.
+Most of the real debugging time went here, not into the REST API or database.
+
+**The assistant hallucinated a database result instead of calling the tool.** During a real test call, it
+said "let me check... it looks like we already have a record for [name]" — a completely fabricated
+duplicate, confirmed false by checking the actual database and the Convex function logs, which showed
+*zero* webhook hits during that entire call. The model (`gpt-4o-mini` at the time) had learned to narrate
+a plausible-sounding tool result instead of actually invoking the function — a known reliability gap in
+smaller models under long, multi-tool system prompts. Fixed on three levels: moved to full `gpt-4o` (far
+more consistent at real tool-calling), moved the "let me check" filler out of the model's hands entirely
+using Vapi's native `request-start` tool messages (so it never has to narrate a wait), and added a
+first-position system-prompt rule that flatly forbids stating any outcome — found, saved, updated —
+unless a real tool result said so.
+
+**The call never hung up.** After successfully registering a patient and saying its goodbye line, the
+assistant just sat on the line, eventually triggering the silence-timeout hook ("Are you still there?")
+instead of ending cleanly. Relying on the model to separately decide to invoke an end-call function was
+the same class of problem as the hallucination above — an extra discretionary step under a long prompt.
+Fixed with Vapi's `endCallPhrases`: the model is told to close with one fixed, exact sentence, and Vapi
+hangs up automatically the instant that exact sentence is spoken — no function-call reliance needed.
+
+**Mis-transcribed names and digits over accented, real phone-line audio.** A live test call misheard a
+name multiple ways before landing correctly, and a spoken phone number needed a full digit-by-digit
+read-back to catch a transcription error. Two changes: switched the Deepgram transcriber model from
+general-purpose `nova-2` to `nova-2-phonecall`, which is trained specifically on 8kHz telephone audio
+rather than studio-quality speech; and added an explicit read-back-and-confirm step for names
+immediately after collecting them (mirroring how phone numbers were already handled), so a misheard name
+gets caught in the next turn instead of surviving all the way to the final summary. Some residual error
+rate is inherent to phone-line STT and accented speech no matter the model — the confirmation habit built
+into the prompt is what actually keeps bad data out of the database, not the transcriber alone.
+
+**Vapi's dashboard test tool was itself unreliable for verifying fixes.** After deploying several fixes,
+a test call in the Vapi dashboard's "Composer" editor still showed the *old* prompt, old model, and old
+greeting. Vapi's Composer (their own docs label it Alpha) keeps a separate draft that only goes live on
+an explicit Publish, completely independent of updates pushed through the API — so testing there was
+silently testing stale, unpublished state rather than what was actually live on the phone number. This
+cost real debugging time chasing a "bug" that didn't exist. Solved two ways: confirmed source of truth by
+reading the assistant back via `GET /assistant/{id}` after every change rather than trusting the
+dashboard UI, and built `/vapi-test` — a small page using Vapi's browser SDK that calls the real published
+assistant directly over WebRTC — as a reliable test path that can't drift from what's actually deployed.
+
+**A silent TypeScript failure was blocking every backend deploy during a live test call.** While fixing
+the hallucination bug above, tightening a `ctx: any` type (per this project's Convex guidelines) exposed
+16 real type errors in `vapiTools.ts` that `npx convex dev` was silently failing to push — meaning a real
+test call happened while the backend hadn't accepted any updates in ~15 minutes. Convex kept serving the
+last successfully compiled build the whole time (confirmed harmless via `GET /patients`), but it was a
+reminder to read the dev server's own output, not just assume "no error shown to me" means "deployed."
+Fixed by properly casting the webhook's `Record<string, unknown>` args instead of loosening types to make
+the error disappear.
+
 ## How to run this project
 
 **You don't need to run anything to review it** — the phone number, API, dashboard, and browser mic
