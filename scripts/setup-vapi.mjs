@@ -53,7 +53,10 @@ const assistantPayload = {
     tools: toolsWithServer,
   },
   voice: { provider: "vapi", voiceId: "Emma" },
-  transcriber: { provider: "deepgram", model: "nova-2", language: "en" },
+  // nova-2-phonecall is Deepgram's model tuned specifically for 8kHz telephone
+  // audio (vs. general-purpose nova-2), which matters a lot for accented speech
+  // and spoken digit strings over a real phone line.
+  transcriber: { provider: "deepgram", model: "nova-2-phonecall", language: "en" },
   endCallFunctionEnabled: true,
   // Belt-and-suspenders call termination: the model is instructed to say this
   // exact closing line, and Vapi auto-hangs-up as soon as it's spoken — more
