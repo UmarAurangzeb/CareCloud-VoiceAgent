@@ -55,6 +55,10 @@ const assistantPayload = {
   voice: { provider: "vapi", voiceId: "Emma" },
   transcriber: { provider: "deepgram", model: "nova-2", language: "en" },
   endCallFunctionEnabled: true,
+  // Belt-and-suspenders call termination: the model is instructed to say this
+  // exact closing line, and Vapi auto-hangs-up as soon as it's spoken — more
+  // reliable than depending on the model to also invoke an end-call function.
+  endCallPhrases: ["Thanks again for calling Riverside Family Clinic — take care!"],
   // If the caller goes quiet for 10s, check in once; if still silent 10s after
   // that (20s total, via silenceTimeoutSeconds below), end the call.
   hooks: [
