@@ -44,11 +44,11 @@ const toolsWithServer = tools.map((t) => ({
 const assistantPayload = {
   name: "Patient Registration Intake",
   firstMessage:
-    "Hi there, thanks for calling! I can get you registered as a new patient in just a couple minutes. Let's start with your name — what's your first and last name?",
+    "Thanks for calling Riverside Family Clinic, this is Alex! I can get you set up as a new patient in just a couple minutes — sound good? Let's start with your name.",
   model: {
     provider: "openai",
-    model: "gpt-4o-mini",
-    temperature: 0.4,
+    model: "gpt-4o",
+    temperature: 0.3,
     messages: [{ role: "system", content: systemPrompt }],
     tools: toolsWithServer,
   },

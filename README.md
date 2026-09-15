@@ -34,8 +34,11 @@ Caller ──phone──> Vapi (telephony + STT/TTS + LLM orchestration)
   text-to-speech, and turn-taking. Chosen over raw Twilio + Deepgram/ElevenLabs because it collapses
   three integrations into one, which matters a lot inside a 3-hour window — the FAQ explicitly
   encourages this ("we encourage it... not your ability to implement a speech-to-text engine").
-- **LLM: OpenAI `gpt-4o-mini`** via Vapi's model integration — fast, cheap, and Vapi's function-calling
-  with it is well-tested.
+- **LLM: OpenAI `gpt-4o`** via Vapi's model integration. Started with `gpt-4o-mini` for cost/speed, but
+  moved to full `gpt-4o` after observing it occasionally narrate a tool's outcome in plain text ("let me
+  check... found a record") without actually invoking the function — a known reliability gap in smaller
+  models under multi-tool, long-system-prompt conditions. `gpt-4o` calls tools far more consistently, and
+  correctness matters more than latency for this use case.
 - **Database + REST API: [Convex](https://convex.dev)** — a single backend serves both roles. Convex's
   `httpAction`s let the REST endpoints (`/patients`) and the Vapi tool-call webhook
   (`/vapi/tool-calls`) live in the same deployment and call the *same* mutations/queries directly
@@ -119,6 +122,11 @@ The full system prompt is [`vapi/system-prompt.txt`](vapi/system-prompt.txt); de
   spelled D-A-V-I-S" is just new information the model folds in before the confirmation read-back
   catches anything else.
 - **Tool failures are always narrated**, never silent — voice has no visible error state.
+- **The model is explicitly forbidden from narrating a tool's outcome without actually calling it.** Early
+  testing surfaced exactly this failure mode (see Known limitations) — the fix is two-layered: (1) tool
+  definitions in `vapi/tools.json` carry Vapi-native `request-start`/`request-failed` filler messages, so
+  the model never needs to invent its own "let me check..." text, and (2) the system prompt has a
+  dedicated, first-position rule stating a result may never be spoken unless a real tool call returned it.
 
 ## Edge cases handled
 
@@ -130,6 +138,7 @@ The full system prompt is [`vapi/system-prompt.txt`](vapi/system-prompt.txt); de
 | Caller wants to start over | Prompt explicitly instructs the model to discard in-call state and restart from first name |
 | Returning caller (duplicate) | `lookup_patient_by_phone` tool runs proactively; assistant offers update-instead-of-create |
 | Telephony connection drops mid-call | No partial writes happen — the agent only calls `create_patient`/`update_patient` once, after confirmation, so a drop before that point simply leaves no record (caller can call back and start fresh) |
+| Model hallucinates a tool outcome instead of calling the tool | Observed once during manual testing with `gpt-4o-mini` (it claimed a duplicate record existed that was never in the database — confirmed via Convex logs showing zero webhook hits during that call). Fixed by moving to `gpt-4o`, adding native Vapi filler messages per tool (so the model doesn't need to narrate "checking" itself), and a first-position system prompt rule forbidding any stated outcome without a real tool result |
 | Malformed/missing fields hitting the REST API directly (not via voice) | 422 with a `fields` array naming exactly which fields failed and why |
 
 ## Setup

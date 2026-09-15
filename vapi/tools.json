@@ -1,9 +1,13 @@
 [
   {
     "type": "function",
+    "messages": [
+      { "type": "request-start", "content": "One sec, let me pull that up..." },
+      { "type": "request-failed", "content": "Hmm, I'm having trouble checking that right now — let's just go ahead." }
+    ],
     "function": {
       "name": "lookup_patient_by_phone",
-      "description": "Look up an existing patient record by phone number. Call this silently as soon as the caller's phone number has been collected, before asking any address questions, so a returning caller can be offered an update instead of a duplicate record.",
+      "description": "Look up an existing patient record by phone number. You MUST actually invoke this function via tool-calling as soon as the caller's phone number has been collected, before asking any address questions. Never claim a record was or wasn't found unless this function actually returned that result.",
       "parameters": {
         "type": "object",
         "properties": {
@@ -15,9 +19,13 @@
   },
   {
     "type": "function",
+    "messages": [
+      { "type": "request-start", "content": "Alright, saving that now..." },
+      { "type": "request-failed", "content": "Sorry, something went wrong saving that — let's try again." }
+    ],
     "function": {
       "name": "create_patient",
-      "description": "Create a new patient record. Only call this after reading back the full collected summary and receiving explicit confirmation from the caller.",
+      "description": "Create a new patient record. Only call this after reading back the full collected summary and receiving explicit confirmation from the caller. Never tell the caller registration succeeded unless this function actually returned ok: true.",
       "parameters": {
         "type": "object",
         "properties": {
@@ -47,9 +55,13 @@
   },
   {
     "type": "function",
+    "messages": [
+      { "type": "request-start", "content": "Got it, updating that now..." },
+      { "type": "request-failed", "content": "Sorry, something went wrong updating that — let's try again." }
+    ],
     "function": {
       "name": "update_patient",
-      "description": "Update an existing patient record (partial update). Only used when lookup_patient_by_phone found an existing record and the caller confirmed they want to update it.",
+      "description": "Update an existing patient record (partial update). Only used when lookup_patient_by_phone actually returned found: true and the caller confirmed they want to update it.",
       "parameters": {
         "type": "object",
         "properties": {

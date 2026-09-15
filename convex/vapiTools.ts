@@ -14,6 +14,10 @@ type VapiToolCall = {
   function: { name: string; arguments: Record<string, unknown> };
 };
 
+type Sex = "Male" | "Female" | "Other" | "Decline to Answer";
+const str = (v: unknown) => v as string;
+const optStr = (v: unknown) => v as string | undefined;
+
 async function handleCreatePatient(ctx: ActionCtx, args: Record<string, unknown>) {
   const errors = validatePatient(args, { partial: false });
   if (errors.length > 0) {
@@ -21,35 +25,39 @@ async function handleCreatePatient(ctx: ActionCtx, args: Record<string, unknown>
   }
   const created = await ctx.runMutation(api.patients.create, {
     patient_id: randomUUID(),
-    first_name: args.first_name,
-    last_name: args.last_name,
-    date_of_birth: args.date_of_birth,
-    sex: args.sex,
-    phone_number: args.phone_number,
-    email: args.email,
-    address_line_1: args.address_line_1,
-    address_line_2: args.address_line_2,
-    city: args.city,
-    state: args.state,
-    zip_code: args.zip_code,
-    insurance_provider: args.insurance_provider,
-    insurance_member_id: args.insurance_member_id,
-    preferred_language: args.preferred_language,
-    emergency_contact_name: args.emergency_contact_name,
-    emergency_contact_phone: args.emergency_contact_phone,
+    first_name: str(args.first_name),
+    last_name: str(args.last_name),
+    date_of_birth: str(args.date_of_birth),
+    sex: str(args.sex) as Sex,
+    phone_number: str(args.phone_number),
+    email: optStr(args.email),
+    address_line_1: str(args.address_line_1),
+    address_line_2: optStr(args.address_line_2),
+    city: str(args.city),
+    state: str(args.state),
+    zip_code: str(args.zip_code),
+    insurance_provider: optStr(args.insurance_provider),
+    insurance_member_id: optStr(args.insurance_member_id),
+    preferred_language: optStr(args.preferred_language),
+    emergency_contact_name: optStr(args.emergency_contact_name),
+    emergency_contact_phone: optStr(args.emergency_contact_phone),
   });
   return { ok: true, patient: created };
 }
 
 async function handleUpdatePatient(ctx: ActionCtx, args: Record<string, unknown>) {
-  const { patient_id, ...patch } = args;
+  const { patient_id, ...rawPatch } = args;
   if (!patient_id) return { ok: false, message: "patient_id is required" };
-  const errors = validatePatient(patch, { partial: true });
+  const errors = validatePatient(rawPatch, { partial: true });
   if (errors.length > 0) {
     return { ok: false, message: "validation_failed", fields: errors };
   }
+  const patch: Record<string, string | undefined> = {};
+  for (const [key, value] of Object.entries(rawPatch)) {
+    if (value !== undefined) patch[key] = value as string;
+  }
   const updated = await ctx.runMutation(api.patients.update, {
-    patient_id: patient_id as string,
+    patient_id: str(patient_id),
     patch,
   });
   if (!updated) return { ok: false, message: "patient_not_found" };
