@@ -55,6 +55,16 @@ const assistantPayload = {
   voice: { provider: "vapi", voiceId: "Savannah" },
   transcriber: { provider: "deepgram", model: "nova-2", language: "en" },
   endCallFunctionEnabled: true,
+  // If the caller goes quiet for 10s, check in once; if still silent 10s after
+  // that (20s total, via silenceTimeoutSeconds below), end the call.
+  hooks: [
+    {
+      name: "idle_check_in",
+      on: "customer.speech.timeout",
+      options: { timeoutSeconds: 10, triggerMaxCount: 1, triggerResetMode: "onUserSpeech" },
+      do: [{ type: "say", exact: "Are you still there?" }],
+    },
+  ],
   silenceTimeoutSeconds: 20,
 };
 
