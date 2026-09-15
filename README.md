@@ -6,8 +6,19 @@ it through a REST API + dashboard.
 
 **Call it:** +1 (346) 998-6653
 **API base URL:** `https://lovable-wolf-735.convex.site`
-**Dashboard:** run locally (see below) — `npm run dev`, then `http://localhost:3000`
-**Browser mic test (no phone call needed):** `http://localhost:3000/vapi-test`
+**Dashboard (live):** https://care-cloud-voice-agent.vercel.app/
+**Browser mic test (live, no phone call needed):** https://care-cloud-voice-agent.vercel.app/vapi-test
+
+## Tech stack & why it was the fastest path in 3 hours
+
+| Layer | Choice | Why this over the alternatives |
+|---|---|---|
+| Telephony + Voice AI | **[Vapi](https://vapi.ai)** | Bundles phone provisioning, STT, TTS, turn-taking, and LLM/function-calling orchestration into one integration instead of four (Twilio + Deepgram + ElevenLabs + a custom orchestration loop). The assessment's own FAQ recommends this exact trade-off. Free inbound US numbers, no card required — removed the single biggest time-and-money risk in a 3-hour window. |
+| LLM | **OpenAI `gpt-4o`** (via Vapi) | Started with `gpt-4o-mini` for speed/cost, but it silently skipped function calls under a long multi-tool prompt (see Known limitations) and just made things up. `gpt-4o` is reliable at tool-calling, which is the part that actually has to be correct. |
+| Database + REST API | **[Convex](https://convex.dev)** | One `npx convex dev` gives a real persistent DB, a deployed HTTPS endpoint, and typed server functions — no Postgres connection pooling, migrations, or separate API server to stand up. `httpAction`s let the REST API (`/patients`) and the Vapi tool webhook (`/vapi/tool-calls`) share one deployment and call the *same* mutations directly, satisfying the spec's "or directly invoke the same service layer" option with zero duplicate logic. |
+| Frontend / Dashboard | **Next.js on Vercel** | Public dashboard + browser-mic test page, deployed straight from GitHub with zero server config. |
+
+The common thread: every choice traded "build it myself" for "wire together something managed," specifically because the brief says it's evaluating integration and trade-off judgment under time pressure, not infrastructure-building from scratch.
 
 ## Architecture
 
@@ -142,7 +153,10 @@ The full system prompt is [`vapi/system-prompt.txt`](vapi/system-prompt.txt); de
 | Model hallucinates a tool outcome instead of calling the tool | Observed once during manual testing with `gpt-4o-mini` (it claimed a duplicate record existed that was never in the database — confirmed via Convex logs showing zero webhook hits during that call). Fixed by moving to `gpt-4o`, adding native Vapi filler messages per tool (so the model doesn't need to narrate "checking" itself), and a first-position system prompt rule forbidding any stated outcome without a real tool result |
 | Malformed/missing fields hitting the REST API directly (not via voice) | 422 with a `fields` array naming exactly which fields failed and why |
 
-## Setup
+## How to run this project
+
+**You don't need to run anything to review it** — the phone number, API, dashboard, and browser mic
+test above are all live. The steps below are for running it locally (e.g. to modify and redeploy it).
 
 ### Prerequisites
 - Node 18+
@@ -180,6 +194,13 @@ npm run dev                   # dashboard at http://localhost:3000
 Re-running `node scripts/setup-vapi.mjs` after editing the prompt or tools updates the same assistant
 in place (set `VAPI_ASSISTANT_ID` in `.env.local`, printed by the first run).
 
+### Deploying the dashboard
+
+The live dashboard is deployed on Vercel, imported directly from this GitHub repo, with
+`NEXT_PUBLIC_API_BASE_URL`, `NEXT_PUBLIC_VAPI_PUBLIC_KEY`, and `NEXT_PUBLIC_VAPI_ASSISTANT_ID` set as
+project environment variables (same values as `.env.local`). No other config needed — Convex is already
+a public HTTPS endpoint, so the deployed frontend just calls it directly.
+
 ## Environment variables
 
 | Variable | Used by | Description |
@@ -191,13 +212,15 @@ in place (set `VAPI_ASSISTANT_ID` in `.env.local`, printed by the first run).
 | `VAPI_API_KEY` | `scripts/setup-vapi.mjs` | Vapi private API key, used only to create/update the assistant |
 | `VAPI_PHONE_NUMBER_ID` | `scripts/setup-vapi.mjs` | Which Vapi phone number to attach the assistant to |
 | `VAPI_ASSISTANT_ID` | `scripts/setup-vapi.mjs` (optional) | If set, updates this assistant instead of creating a new one |
+| `NEXT_PUBLIC_VAPI_PUBLIC_KEY` | `/vapi-test` page (client-side) | Vapi's public key — safe to expose to the browser by design |
+| `NEXT_PUBLIC_VAPI_ASSISTANT_ID` | `/vapi-test` page (client-side) | Same assistant ID as above, used client-side to start a WebRTC call |
 
 No API keys are hardcoded anywhere in source — `.env.local` is gitignored. The OpenAI key lives only
 in Vapi's own dashboard (Provider Keys), never in this codebase.
 
 ## Testing without a phone call
 
-`npm run dev` then visit `/vapi-test` — a small page using Vapi's browser SDK (`src/app/vapi-test/page.tsx`)
+Live: https://care-cloud-voice-agent.vercel.app/vapi-test — or locally, `npm run dev` then visit `/vapi-test` — a small page using Vapi's browser SDK (`src/app/vapi-test/page.tsx`)
 that opens a WebRTC call straight to the real, published assistant using its public key. Useful when dialing
 the actual number isn't convenient (e.g. international calling costs), and more reliable than Vapi
 dashboard's built-in "Talk to Assistant" test, which runs through their Composer editor — currently in
