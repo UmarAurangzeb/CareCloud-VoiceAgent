@@ -39,3 +39,8 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# local tooling config, not part of the deliverable
+.claude/
+.agents/
+skills-lock.json
