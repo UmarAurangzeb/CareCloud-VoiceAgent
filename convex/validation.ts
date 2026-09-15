@@ -15,7 +15,6 @@ export type ValidationError = { field: string; message: string };
 const NAME_RE = /^[A-Za-z'-]{1,50}$/;
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const ZIP_RE = /^\d{5}(-\d{4})?$/;
-const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
 export function normalizePhone(raw: string): string {
   return raw.replace(/\D/g, "").replace(/^1(\d{10})$/, "$1");
@@ -25,11 +24,27 @@ function isValidPhone(raw: string): boolean {
   return /^\d{10}$/.test(normalizePhone(raw));
 }
 
-function isValidDateOfBirth(iso: string): boolean {
-  if (!DATE_RE.test(iso)) return false;
-  const d = new Date(iso + "T00:00:00Z");
-  if (Number.isNaN(d.getTime())) return false;
-  return d.getTime() < Date.now();
+// Accepts MM/DD/YYYY (the spec's format) or YYYY-MM-DD. Returns canonical YYYY-MM-DD,
+// or null if it isn't a real calendar date (rejects e.g. 02/30/1990 rather than rolling over).
+export function parseDate(raw: string): string | null {
+  const s = raw.trim();
+  const us = /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/.exec(s);
+  const iso = /^(\d{4})-(\d{2})-(\d{2})$/.exec(s);
+  const parts = us ? { y: us[3], m: us[1], d: us[2] } : iso ? { y: iso[1], m: iso[2], d: iso[3] } : null;
+  if (!parts) return null;
+
+  const y = Number(parts.y);
+  const m = Number(parts.m);
+  const d = Number(parts.d);
+  const date = new Date(Date.UTC(y, m - 1, d));
+  if (date.getUTCFullYear() !== y || date.getUTCMonth() !== m - 1 || date.getUTCDate() !== d) return null;
+
+  return `${y}-${String(m).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+}
+
+function isValidDateOfBirth(raw: string): boolean {
+  const iso = parseDate(raw);
+  return iso !== null && new Date(`${iso}T00:00:00Z`).getTime() < Date.now();
 }
 
 // field-presence checks are split by create vs update: update allows partial payloads.
@@ -53,7 +68,7 @@ export function validatePatient(
 
   if (required("date_of_birth")) errors.push({ field: "date_of_birth", message: "required" });
   else if (str("date_of_birth") !== undefined && !isValidDateOfBirth(str("date_of_birth")!))
-    errors.push({ field: "date_of_birth", message: "must be a valid past date, YYYY-MM-DD" });
+    errors.push({ field: "date_of_birth", message: "must be a valid past date, MM/DD/YYYY (or YYYY-MM-DD)" });
 
   if (required("sex")) errors.push({ field: "sex", message: "required" });
   else if (

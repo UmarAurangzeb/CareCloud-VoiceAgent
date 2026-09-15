@@ -111,6 +111,10 @@ curl -X POST https://lovable-wolf-735.convex.site/patients \
   }'
 ```
 
+`date_of_birth` is accepted as `MM/DD/YYYY` (the spec's format) or `YYYY-MM-DD`, both in request bodies
+and in the `?date_of_birth=` filter. It's stored and returned as `YYYY-MM-DD` so it sorts and indexes
+correctly. Impossible dates like `02/30/1990` and future dates are rejected with a 422.
+
 Validation (`convex/validation.ts`) runs on every request regardless of caller — the voice agent's
 own field checks are a conversational UX nicety, not the security boundary.
 

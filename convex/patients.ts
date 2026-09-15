@@ -1,6 +1,12 @@
 import { mutation, query } from "./_generated/server";
 import { v } from "convex/values";
-import { normalizePhone } from "./validation";
+import { normalizePhone, parseDate } from "./validation";
+
+function canonicalDateOfBirth(raw: string): string {
+  const iso = parseDate(raw);
+  if (!iso) throw new Error(`invalid date_of_birth: ${raw}`);
+  return iso;
+}
 
 const patientFields = {
   first_name: v.string(),
@@ -32,6 +38,7 @@ export const create = mutation({
     const now = Date.now();
     const id = await ctx.db.insert("patients", {
       ...args,
+      date_of_birth: canonicalDateOfBirth(args.date_of_birth),
       state: args.state.toUpperCase(),
       phone_number: normalizePhone(args.phone_number),
       emergency_contact_phone: args.emergency_contact_phone
@@ -86,6 +93,7 @@ export const update = mutation({
     if (patch.emergency_contact_phone)
       normalizedPatch.emergency_contact_phone = normalizePhone(patch.emergency_contact_phone);
     if (patch.state) normalizedPatch.state = patch.state.toUpperCase();
+    if (patch.date_of_birth) normalizedPatch.date_of_birth = canonicalDateOfBirth(patch.date_of_birth);
 
     await ctx.db.patch(existing._id, { ...normalizedPatch, updated_at: Date.now() });
     return await ctx.db.get(existing._id);
@@ -152,7 +160,9 @@ export const list = query({
     } else if (args.date_of_birth) {
       results = await ctx.db
         .query("patients")
-        .withIndex("by_date_of_birth", (q) => q.eq("date_of_birth", args.date_of_birth!))
+        .withIndex("by_date_of_birth", (q) =>
+          q.eq("date_of_birth", parseDate(args.date_of_birth!) ?? args.date_of_birth!)
+        )
         .collect();
     } else {
       results = await ctx.db.query("patients").collect();
