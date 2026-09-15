@@ -52,7 +52,7 @@ const assistantPayload = {
     messages: [{ role: "system", content: systemPrompt }],
     tools: toolsWithServer,
   },
-  voice: { provider: "vapi", voiceId: "Savannah" },
+  voice: { provider: "vapi", voiceId: "Emma" },
   transcriber: { provider: "deepgram", model: "nova-2", language: "en" },
   endCallFunctionEnabled: true,
   // If the caller goes quiet for 10s, check in once; if still silent 10s after

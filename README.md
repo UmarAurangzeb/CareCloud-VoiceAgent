@@ -7,6 +7,7 @@ it through a REST API + dashboard.
 **Call it:** +1 (346) 998-6653
 **API base URL:** `https://lovable-wolf-735.convex.site`
 **Dashboard:** run locally (see below) — `npm run dev`, then `http://localhost:3000`
+**Browser mic test (no phone call needed):** `http://localhost:3000/vapi-test`
 
 ## Architecture
 
@@ -193,6 +194,16 @@ in place (set `VAPI_ASSISTANT_ID` in `.env.local`, printed by the first run).
 
 No API keys are hardcoded anywhere in source — `.env.local` is gitignored. The OpenAI key lives only
 in Vapi's own dashboard (Provider Keys), never in this codebase.
+
+## Testing without a phone call
+
+`npm run dev` then visit `/vapi-test` — a small page using Vapi's browser SDK (`src/app/vapi-test/page.tsx`)
+that opens a WebRTC call straight to the real, published assistant using its public key. Useful when dialing
+the actual number isn't convenient (e.g. international calling costs), and more reliable than Vapi
+dashboard's built-in "Talk to Assistant" test, which runs through their Composer editor — currently in
+Alpha and prone to testing a stale, unpublished draft rather than what `scripts/setup-vapi.mjs` actually
+deployed (confirmed against Vapi's own community bug reports). `/vapi-test` talks to the assistant the exact
+same way the phone number does, just over the browser mic instead of PSTN.
 
 ## Known limitations / trade-offs
 
