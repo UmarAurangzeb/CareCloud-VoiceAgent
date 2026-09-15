@@ -64,7 +64,7 @@ export default function Dashboard() {
   });
 
   return (
-    <main className="min-h-screen bg-slate-950 text-slate-100 p-8">
+    <main className="flex-1 px-4 py-8 sm:px-8">
       <div className="max-w-6xl mx-auto">
         <div className="flex items-center justify-between mb-6">
           <div>
